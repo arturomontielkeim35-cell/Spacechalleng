@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NASA Space Apps - Prototipo Geoespacial</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { overflow: hidden; }
+    #map { height: 100%; width: 100%; min-height: 320px; }
+    @media (max-width: 1023px) {
+      body { overflow: auto; }
+      #app-layout { height: auto; min-height: calc(100vh - 4rem); }
+      #map-panel { height: 55vh; min-height: 360px; }
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans antialiased">
+  <header class="bg-slate-800 border-b border-slate-700 px-4 md:px-6 py-3 flex flex-wrap gap-2 justify-between items-center shadow-md">
+    <div class="flex items-center gap-3">
+      <div class="bg-blue-600 text-white font-bold px-3 py-1 rounded text-sm uppercase tracking-wider">NASA Space Apps</div>
+      <h1 class="text-lg md:text-xl font-semibold tracking-wide">Prototipo de Monitoreo Territorial</h1>
+    </div>
+    <div class="text-sm text-slate-400">Autor: <span class="text-slate-200 font-medium">Axel Montiel</span></div>
+  </header>
+
+  <main id="app-layout" class="grid grid-cols-1 lg:grid-cols-4 h-[calc(100vh-4rem)]">
+    <aside class="lg:col-span-1 bg-slate-800/90 border-r border-slate-700 p-5 md:p-6 flex flex-col justify-between gap-6 overflow-y-auto">
+      <div class="space-y-6">
+        <div>
+          <h2 class="text-lg font-bold text-blue-400 mb-2">Panel de Selección</h2>
+          <p class="text-sm text-slate-300">Haz clic en cualquier punto del mapa para seleccionar una ubicación y ver datos de demostración.</p>
+        </div>
+
+        <section class="bg-slate-900/80 p-4 rounded-lg border border-slate-700 space-y-3">
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Ubicación seleccionada</h3>
+          <div class="grid grid-cols-2 gap-2 text-sm">
+            <div><span class="block text-slate-500 text-xs">Latitud</span><span id="lat-display" class="font-mono font-medium text-emerald-400">-25.3000</span></div>
+            <div><span class="block text-slate-500 text-xs">Longitud</span><span id="lng-display" class="font-mono font-medium text-emerald-400">-57.6000</span></div>
+          </div>
+        </section>
+
+        <section class="space-y-3">
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Parámetros de demostración</h3>
+          <div class="bg-slate-900/50 p-3 rounded border border-slate-700/60 flex justify-between items-center gap-3">
+            <span class="text-sm text-slate-300">Índice de vegetación (NDVI)</span><span id="ndvi-val" class="font-mono text-sm text-cyan-400 text-right">0.68 (simulado)</span>
+          </div>
+          <div class="bg-slate-900/50 p-3 rounded border border-slate-700/60 flex justify-between items-center gap-3">
+            <span class="text-sm text-slate-300">Temp. sup. terrestre</span><span id="temp-val" class="font-mono text-sm text-amber-400 text-right">28.4 °C</span>
+          </div>
+          <div class="bg-slate-900/50 p-3 rounded border border-slate-700/60 flex justify-between items-center gap-3">
+            <span class="text-sm text-slate-300">Humedad del suelo</span><span id="soil-val" class="font-mono text-sm text-blue-400 text-right">42%</span>
+          </div>
+          <p class="text-xs text-slate-500">Estos valores son simulados; todavía no provienen de la NASA.</p>
+        </section>
+        <p id="status" role="status" class="text-sm text-slate-300" aria-live="polite">Mapa listo. Selecciona un punto.</p>
+      </div>
+
+      <div class="pt-5 border-t border-slate-700">
+        <button id="analyze-btn" type="button" class="w-full bg-blue-600 hover:bg-blue-500 focus:ring-2 focus:ring-blue-300 text-white font-medium py-2.5 px-4 rounded transition shadow-lg flex items-center justify-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <span>Ejecutar análisis de prueba</span>
+        </button>
+      </div>
+    </aside>
+
+    <section id="map-panel" class="lg:col-span-3 relative min-w-0">
+      <div id="map" aria-label="Mapa interactivo"></div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const initialLat = -25.3000;
+      const initialLng = -57.6000;
+      const mapElement = document.getElementById('map');
+
+      if (typeof L === 'undefined') {
+        document.getElementById('status').textContent =
+          'No se pudo cargar Leaflet. Comprueba tu conexión a Internet y vuelve a abrir el archivo.';
+        mapElement.innerHTML = '<div style="padding:20px;color:white">No se pudo cargar el mapa. Comprueba tu conexión a Internet.</div>';
+        return;
+      }
+
+      const map = L.map('map').setView([initialLat, initialLng], 6);
+
+      // URL corregida: la coordenada de tesela termina en {y}.png.
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      }).addTo(map);
+
+      let currentMarker = null;
+      let selectedLocation = { lat: initialLat, lng: initialLng };
+
+      function actualizarUbicacion(lat, lng) {
+        selectedLocation = { lat, lng };
+        document.getElementById('lat-display').textContent = lat.toFixed(4);
+        document.getElementById('lng-display').textContent = lng.toFixed(4);
+
+        // Datos de ejemplo, no son mediciones satelitales reales.
+        const ndvi = Math.abs(Math.sin(lat * Math.PI / 180) * 0.8);
+        const temp = 20 + Math.abs(Math.cos(lng * Math.PI / 180) * 15);
+        const soil = Math.floor(30 + Math.random() * 40);
+        document.getElementById('ndvi-val').textContent = ndvi.toFixed(2) + ' (simulado)';
+        document.getElementById('temp-val').textContent = temp.toFixed(1) + ' °C';
+        document.getElementById('soil-val').textContent = soil + '%';
+
+        if (currentMarker) currentMarker.setLatLng([lat, lng]);
+        else currentMarker = L.marker([lat, lng]).addTo(map);
+
+        currentMarker.bindPopup(
+          '<b>Ubicación seleccionada</b><br>Latitud: ' + lat.toFixed(4) +
+          '<br>Longitud: ' + lng.toFixed(4)
+        ).openPopup();
+
+        document.getElementById('status').textContent = 'Ubicación seleccionada correctamente.';
+      }
+
+      map.on('click', (event) => actualizarUbicacion(event.latlng.lat, event.latlng.lng));
+      actualizarUbicacion(initialLat, initialLng);
+
+      document.getElementById('analyze-btn').addEventListener('click', () => {
+        const { lat, lng } = selectedLocation;
+        document.getElementById('status').textContent =
+          'Análisis de demostración completado para ' + lat.toFixed(4) + ', ' + lng.toFixed(4) +
+          '. Los valores mostrados son simulados; no se consultó la API de NASA.';
+      });
+
+      // Corrige el tamaño del mapa al cambiar el tamaño de pantalla.
+      window.addEventListener('resize', () => map.invalidateSize());
+      setTimeout(() => map.invalidateSize(), 100);
+    })();
+  </script>
+</body>
+</html>
